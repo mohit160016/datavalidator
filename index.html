@@ -4,44 +4,57 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Timezone Lead Splitter</title>
+<title>Level Debt Timezone Splitter</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
 body{
     font-family: Arial, sans-serif;
-    max-width: 900px;
-    margin: 40px auto;
-    padding:20px;
+    max-width: 1000px;
+    margin: 30px auto;
+    padding: 20px;
 }
+
 .card{
     border:1px solid #ddd;
-    padding:20px;
     border-radius:10px;
+    padding:20px;
     margin-bottom:20px;
 }
-input,select,button{
+
+button{
+    padding:10px 20px;
+    cursor:pointer;
+}
+
+select,input{
     padding:10px;
     margin:5px;
-}
-button{
-    cursor:pointer;
 }
 </style>
 
 </head>
 <body>
 
-<h2>US Timezone Lead Splitter</h2>
+<h2>Level Debt Timezone Splitter</h2>
 
 <div class="card">
-    <input type="file" id="fileInput">
 
-```
+<label>Campaign Profile</label>
+
+<select id="profile">
+    <option value="Level Debt">Level Debt</option>
+</select>
+
+<br><br>
+
+<input type="file" id="fileInput">
+
 <br><br>
 
 <label>Export Format</label>
+
 <select id="exportFormat">
     <option value="xlsx">Excel (.xlsx)</option>
     <option value="csv">CSV (.csv)</option>
@@ -49,43 +62,108 @@ button{
 
 <br><br>
 
-<button onclick="processFile()">Split File</button>
-```
+<button onclick="processFile()">Generate Files</button>
 
 </div>
 
 <div class="card">
-    <h3>Results</h3>
-    <div id="results"></div>
+<h3>Results</h3>
+<div id="results"></div>
 </div>
 
 <script>
 
+const profiles = {
+"Level Debt":[
+"AL","AZ","AR","CA","CO","CT","DE","DC","FL","GA",
+"ID","IN","IA","KY","LA","MD","MA","MI","MN","MS",
+"MO","NE","NV","NH","NJ","NM","NY","NC","ND","OH",
+"OK","PA","TN","TX","VA","WA","WY"
+]
+};
+
 const timezoneMap = {
 
 EST:[
-'NY','NJ','FL','GA','NC','SC','VA','PA','OH','MI','IN','KY','WV','VT','NH','ME','MA','CT','RI','DE','MD'
+"CT","DE","DC","FL","GA","IN","KY","MD","MA",
+"MI","NH","NJ","NY","NC","OH","PA","VA"
 ],
 
 CST:[
-'TX','IL','AL','AR','IA','KS','LA','MN','MS','MO','NE','ND','OK','SD','TN','WI'
+"AL","AR","IA","LA","MN","MS","MO","NE",
+"ND","OK","TN","TX"
 ],
 
 MST:[
-'CO','MT','NM','UT','WY'
+"AZ","CO","ID","NM","WY"
 ],
 
 PST:[
-'CA','NV','OR','WA'
+"CA","NV","OR","WA"
 ]
 
 };
+
+function normalizeState(state){
+
+if(!state) return "";
+
+const map = {
+
+"ALABAMA":"AL",
+"ARIZONA":"AZ",
+"ARKANSAS":"AR",
+"CALIFORNIA":"CA",
+"COLORADO":"CO",
+"CONNECTICUT":"CT",
+"DELAWARE":"DE",
+"DISTRICT OF COLUMBIA":"DC",
+"DC":"DC",
+"FLORIDA":"FL",
+"GEORGIA":"GA",
+"IDAHO":"ID",
+"INDIANA":"IN",
+"IOWA":"IA",
+"KENTUCKY":"KY",
+"LOUISIANA":"LA",
+"MARYLAND":"MD",
+"MASS":"MA",
+"MASSACHUSETTS":"MA",
+"MICHIGAN":"MI",
+"MINNESOTA":"MN",
+"MISSISSIPPI":"MS",
+"MISSOURI":"MO",
+"NEBRASKA":"NE",
+"NEVADA":"NV",
+"NEW HAMPSHIRE":"NH",
+"NEW JERSEY":"NJ",
+"NEW MEXICO":"NM",
+"NEW YORK":"NY",
+"NORTH CAROLINA":"NC",
+"NORTH DAKOTA":"ND",
+"OHIO":"OH",
+"OKLAHOMA":"OK",
+"PENNSYLVANIA":"PA",
+"TENNESSEE":"TN",
+"TEXAS":"TX",
+"VIRGINIA":"VA",
+"WASHINGTON":"WA",
+"WASHINTON":"WA",
+"WYOMING":"WY"
+
+};
+
+let value = String(state).trim().toUpperCase();
+
+return map[value] || value;
+
+}
 
 function getTimezone(state){
 
 for(let zone in timezoneMap){
 
-if(timezoneMap[zone].includes(String(state).toUpperCase())){
+if(timezoneMap[zone].includes(state)){
 return zone;
 }
 
@@ -97,55 +175,73 @@ return null;
 
 function processFile(){
 
-const file=document.getElementById('fileInput').files[0];
+const file =
+document.getElementById("fileInput").files[0];
 
 if(!file){
-alert('Please select a file');
+
+alert("Please select a file");
+return;
+
+}
+
+const reader = new FileReader();
+
+reader.onload = function(e){
+
+const data =
+new Uint8Array(e.target.result);
+
+const workbook =
+XLSX.read(data,{type:'array'});
+
+const sheet =
+workbook.Sheets[workbook.SheetNames[0]];
+
+const rows =
+XLSX.utils.sheet_to_json(sheet);
+
+const allowedStates =
+profiles["Level Debt"];
+
+let est = [];
+let cst = [];
+let mst = [];
+let pst = [];
+
+rows.forEach(row => {
+
+const state =
+normalizeState(
+row.State ||
+row.STATE ||
+row.state
+);
+
+if(!allowedStates.includes(state)){
 return;
 }
 
-const reader=new FileReader();
+const tz = getTimezone(state);
 
-reader.onload=function(e){
-
-const data=new Uint8Array(e.target.result);
-
-const workbook=XLSX.read(data,{type:'array'});
-
-const sheet=workbook.Sheets[workbook.SheetNames[0]];
-
-const rows=XLSX.utils.sheet_to_json(sheet);
-
-let est=[];
-let cst=[];
-let mst=[];
-let pst=[];
-
-rows.forEach(row=>{
-
-const state=row.State || row.STATE || row.state;
-
-const tz=getTimezone(state);
-
-if(tz==='EST') est.push(row);
-if(tz==='CST') cst.push(row);
-if(tz==='MST') mst.push(row);
-if(tz==='PST') pst.push(row);
+if(tz === "EST") est.push(row);
+if(tz === "CST") cst.push(row);
+if(tz === "MST") mst.push(row);
+if(tz === "PST") pst.push(row);
 
 });
 
-downloadFile(est,'EST');
-downloadFile(cst,'CST');
-downloadFile(mst,'MST');
-downloadFile(pst,'PST');
+downloadFile(est,"EST");
+downloadFile(cst,"CST");
+downloadFile(mst,"MST");
+downloadFile(pst,"PST");
 
-document.getElementById('results').innerHTML=
-`
-EST: ${est.length}<br>
-CST: ${cst.length}<br>
-MST: ${mst.length}<br>
-PST: ${pst.length}<br>
-`;
+document.getElementById("results").innerHTML =
+
+"EST: " + est.length + "<br>" +
+"CST: " + cst.length + "<br>" +
+"MST: " + mst.length + "<br>" +
+"PST: " + pst.length;
 
 };
 
@@ -155,23 +251,38 @@ reader.readAsArrayBuffer(file);
 
 function downloadFile(data,fileName){
 
-if(data.length===0) return;
+if(data.length === 0){
+return;
+}
 
-const format=document.getElementById('exportFormat').value;
+const format =
+document.getElementById("exportFormat").value;
 
-const ws=XLSX.utils.json_to_sheet(data);
+const ws =
+XLSX.utils.json_to_sheet(data);
 
-const wb=XLSX.utils.book_new();
+const wb =
+XLSX.utils.book_new();
 
-XLSX.utils.book_append_sheet(wb,ws,fileName);
+XLSX.utils.book_append_sheet(
+wb,
+ws,
+fileName
+);
 
-if(format==='xlsx'){
+if(format === "xlsx"){
 
-XLSX.writeFile(wb,fileName+'.xlsx');
+XLSX.writeFile(
+wb,
+fileName + ".xlsx"
+);
 
 }else{
 
-XLSX.writeFile(wb,fileName+'.csv');
+XLSX.writeFile(
+wb,
+fileName + ".csv"
+);
 
 }
 
