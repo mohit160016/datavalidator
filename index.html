@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timezone Lead Splitter</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    max-width: 900px;
+    margin: 40px auto;
+    padding:20px;
+}
+.card{
+    border:1px solid #ddd;
+    padding:20px;
+    border-radius:10px;
+    margin-bottom:20px;
+}
+input,select,button{
+    padding:10px;
+    margin:5px;
+}
+button{
+    cursor:pointer;
+}
+</style>
+
+</head>
+<body>
+
+<h2>US Timezone Lead Splitter</h2>
+
+<div class="card">
+    <input type="file" id="fileInput">
+
+```
+<br><br>
+
+<label>Export Format</label>
+<select id="exportFormat">
+    <option value="xlsx">Excel (.xlsx)</option>
+    <option value="csv">CSV (.csv)</option>
+</select>
+
+<br><br>
+
+<button onclick="processFile()">Split File</button>
+```
+
+</div>
+
+<div class="card">
+    <h3>Results</h3>
+    <div id="results"></div>
+</div>
+
+<script>
+
+const timezoneMap = {
+
+EST:[
+'NY','NJ','FL','GA','NC','SC','VA','PA','OH','MI','IN','KY','WV','VT','NH','ME','MA','CT','RI','DE','MD'
+],
+
+CST:[
+'TX','IL','AL','AR','IA','KS','LA','MN','MS','MO','NE','ND','OK','SD','TN','WI'
+],
+
+MST:[
+'CO','MT','NM','UT','WY'
+],
+
+PST:[
+'CA','NV','OR','WA'
+]
+
+};
+
+function getTimezone(state){
+
+for(let zone in timezoneMap){
+
+if(timezoneMap[zone].includes(String(state).toUpperCase())){
+return zone;
+}
+
+}
+
+return null;
+
+}
+
+function processFile(){
+
+const file=document.getElementById('fileInput').files[0];
+
+if(!file){
+alert('Please select a file');
+return;
+}
+
+const reader=new FileReader();
+
+reader.onload=function(e){
+
+const data=new Uint8Array(e.target.result);
+
+const workbook=XLSX.read(data,{type:'array'});
+
+const sheet=workbook.Sheets[workbook.SheetNames[0]];
+
+const rows=XLSX.utils.sheet_to_json(sheet);
+
+let est=[];
+let cst=[];
+let mst=[];
+let pst=[];
+
+rows.forEach(row=>{
+
+const state=row.State || row.STATE || row.state;
+
+const tz=getTimezone(state);
+
+if(tz==='EST') est.push(row);
+if(tz==='CST') cst.push(row);
+if(tz==='MST') mst.push(row);
+if(tz==='PST') pst.push(row);
+
+});
+
+downloadFile(est,'EST');
+downloadFile(cst,'CST');
+downloadFile(mst,'MST');
+downloadFile(pst,'PST');
+
+document.getElementById('results').innerHTML=
+`
+EST: ${est.length}<br>
+CST: ${cst.length}<br>
+MST: ${mst.length}<br>
+PST: ${pst.length}<br>
+`;
+
+};
+
+reader.readAsArrayBuffer(file);
+
+}
+
+function downloadFile(data,fileName){
+
+if(data.length===0) return;
+
+const format=document.getElementById('exportFormat').value;
+
+const ws=XLSX.utils.json_to_sheet(data);
+
+const wb=XLSX.utils.book_new();
+
+XLSX.utils.book_append_sheet(wb,ws,fileName);
+
+if(format==='xlsx'){
+
+XLSX.writeFile(wb,fileName+'.xlsx');
+
+}else{
+
+XLSX.writeFile(wb,fileName+'.csv');
+
+}
+
+}
+
+</script>
+
+</body>
+</html>
