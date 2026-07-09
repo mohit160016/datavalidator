@@ -1,294 +1,133 @@
 <!DOCTYPE html>
-
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Level Debt Timezone Splitter</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
+<title>Lead Splitter</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <style>
-body{
-    font-family: Arial, sans-serif;
-    max-width: 1000px;
-    margin: 30px auto;
-    padding: 20px;
-}
-
-.card{
-    border:1px solid #ddd;
-    border-radius:10px;
-    padding:20px;
-    margin-bottom:20px;
-}
-
-button{
-    padding:10px 20px;
-    cursor:pointer;
-}
-
-select,input{
-    padding:10px;
-    margin:5px;
-}
+body{font-family:Arial;padding:20px;max-width:1000px;margin:auto}
+.box{border:1px solid #ccc;padding:15px;margin:10px 0}
+button{padding:8px 12px;margin:5px}
+select,input{padding:6px}
 </style>
-
 </head>
 <body>
+<h2>Debt Settlement Lead Splitter</h2>
 
-<h2>Level Debt Timezone Splitter</h2>
-
-<div class="card">
-
-<label>Campaign Profile</label>
-
-<select id="profile">
-    <option value="Level Debt">Level Debt</option>
-</select>
-
-<br><br>
-
-<input type="file" id="fileInput">
-
-<br><br>
-
-<label>Export Format</label>
-
-<select id="exportFormat">
-    <option value="xlsx">Excel (.xlsx)</option>
-    <option value="csv">CSV (.csv)</option>
-</select>
-
-<br><br>
-
-<button onclick="processFile()">Generate Files</button>
-
+<div class="box">
+<input type="file" id="file">
 </div>
 
-<div class="card">
-<h3>Results</h3>
-<div id="results"></div>
+<div class="box">
+<h3>State Groups</h3>
+<input id="groupName" placeholder="Group Name">
+<input id="states" placeholder="CA,TX,FL,NY">
+<button onclick="saveGroup()">Save Group</button>
+<br><br>
+<select id="groups"></select>
 </div>
+
+<div class="box">
+<label><input type="checkbox" id="dedupe" checked> Remove Duplicates</label><br>
+<label><input type="checkbox" id="splitTZ" checked> Split Timezones</label><br>
+<button onclick="processFile()">Process</button>
+</div>
+
+<div id="result"></div>
 
 <script>
+const areaMap={};
+function loadGroups(){
+ let groups=JSON.parse(localStorage.getItem("groups")||"{}");
+ let sel=document.getElementById("groups");
+ sel.innerHTML="";
+ Object.keys(groups).forEach(g=>{
+   let o=document.createElement("option");
+   o.value=g;o.textContent=g;
+   sel.appendChild(o);
+ });
+}
+function saveGroup(){
+ let name=document.getElementById("groupName").value.trim();
+ let states=document.getElementById("states").value.toUpperCase().split(",");
+ let groups=JSON.parse(localStorage.getItem("groups")||"{}");
+ groups[name]=states;
+ localStorage.setItem("groups",JSON.stringify(groups));
+ loadGroups();
+}
+loadGroups();
 
-const profiles = {
-"Level Debt":[
-"AL","AZ","AR","CA","CO","CT","DE","DC","FL","GA",
-"ID","IN","IA","KY","LA","MD","MA","MI","MN","MS",
-"MO","NE","NV","NH","NJ","NM","NY","NC","ND","OH",
-"OK","PA","TN","TX","VA","WA","WY"
-]
-};
-
-const timezoneMap = {
-
-EST:[
-"CT","DE","DC","FL","GA","IN","KY","MD","MA",
-"MI","NH","NJ","NY","NC","OH","PA","VA"
-],
-
-CST:[
-"AL","AR","IA","LA","MN","MS","MO","NE",
-"ND","OK","TN","TX"
-],
-
-MST:[
-"AZ","CO","ID","NM","WY"
-],
-
-PST:[
-"CA","NV","OR","WA"
-]
-
-};
-
-function normalizeState(state){
-
-if(!state) return "";
-
-const map = {
-
-"ALABAMA":"AL",
-"ARIZONA":"AZ",
-"ARKANSAS":"AR",
-"CALIFORNIA":"CA",
-"COLORADO":"CO",
-"CONNECTICUT":"CT",
-"DELAWARE":"DE",
-"DISTRICT OF COLUMBIA":"DC",
-"DC":"DC",
-"FLORIDA":"FL",
-"GEORGIA":"GA",
-"IDAHO":"ID",
-"INDIANA":"IN",
-"IOWA":"IA",
-"KENTUCKY":"KY",
-"LOUISIANA":"LA",
-"MARYLAND":"MD",
-"MASS":"MA",
-"MASSACHUSETTS":"MA",
-"MICHIGAN":"MI",
-"MINNESOTA":"MN",
-"MISSISSIPPI":"MS",
-"MISSOURI":"MO",
-"NEBRASKA":"NE",
-"NEVADA":"NV",
-"NEW HAMPSHIRE":"NH",
-"NEW JERSEY":"NJ",
-"NEW MEXICO":"NM",
-"NEW YORK":"NY",
-"NORTH CAROLINA":"NC",
-"NORTH DAKOTA":"ND",
-"OHIO":"OH",
-"OKLAHOMA":"OK",
-"PENNSYLVANIA":"PA",
-"TENNESSEE":"TN",
-"TEXAS":"TX",
-"VIRGINIA":"VA",
-"WASHINGTON":"WA",
-"WASHINTON":"WA",
-"WYOMING":"WY"
-
-};
-
-let value = String(state).trim().toUpperCase();
-
-return map[value] || value;
-
+function downloadCSV(name,data){
+ let ws=XLSX.utils.json_to_sheet(data);
+ let csv=XLSX.utils.sheet_to_csv(ws);
+ let blob=new Blob([csv],{type:"text/csv"});
+ let a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);
+ a.download=name;
+ a.click();
 }
 
-function getTimezone(state){
-
-for(let zone in timezoneMap){
-
-if(timezoneMap[zone].includes(state)){
-return zone;
+function tzFromState(st){
+ const EST=['CT','DC','DE','FL','GA','IN','KY','MA','MD','MI','NC','NH','NJ','NY','OH','PA','VA'];
+ const CST=['AL','AR','IA','LA','MN','MO','MS','NE','ND','OK','TN','TX'];
+ const MST=['AZ','CO','ID','NM','WY'];
+ const PST=['CA','NV','WA'];
+ if(EST.includes(st)) return 'EST';
+ if(CST.includes(st)) return 'CST';
+ if(MST.includes(st)) return 'MST';
+ if(PST.includes(st)) return 'PST';
+ return 'OTHER';
 }
 
+async function processFile(){
+ let f=document.getElementById('file').files[0];
+ if(!f){alert('Select file');return;}
+ let groups=JSON.parse(localStorage.getItem("groups")||"{}");
+ let grp=document.getElementById("groups").value;
+ let allowed=groups[grp]||[];
+
+ let buf=await f.arrayBuffer();
+ let wb=XLSX.read(buf);
+ let data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+ let seen=new Set();
+ let out=[];
+
+ data.forEach(r=>{
+   let phone=String(r.Phone||r.phone||Object.values(r)[0]||'').replace(/\D/g,'');
+   if(phone.length<10)return;
+
+   if(document.getElementById("dedupe").checked){
+      if(seen.has(phone)) return;
+      seen.add(phone);
+   }
+
+   let area=phone.slice(-10,-7);
+
+   let state=r.State || r.STATE || '';
+   if(allowed.length && !allowed.includes(state)) return;
+
+   r.Phone=phone;
+   r.Timezone=tzFromState(state);
+   out.push(r);
+ });
+
+ downloadCSV(grp+"_ALL.csv",out);
+
+ let est=out.filter(x=>x.Timezone==='EST');
+ let cst=out.filter(x=>x.Timezone==='CST');
+ let mst=out.filter(x=>x.Timezone==='MST');
+ let pst=out.filter(x=>x.Timezone==='PST');
+
+ downloadCSV(grp+"_EST.csv",est);
+ downloadCSV(grp+"_CST.csv",cst);
+ downloadCSV(grp+"_MST.csv",mst);
+ downloadCSV(grp+"_PST.csv",pst);
+
+ document.getElementById("result").innerHTML=
+   "EST:"+est.length+" CST:"+cst.length+" MST:"+mst.length+" PST:"+pst.length;
 }
-
-return null;
-
-}
-
-function processFile(){
-
-const file =
-document.getElementById("fileInput").files[0];
-
-if(!file){
-
-alert("Please select a file");
-return;
-
-}
-
-const reader = new FileReader();
-
-reader.onload = function(e){
-
-const data =
-new Uint8Array(e.target.result);
-
-const workbook =
-XLSX.read(data,{type:'array'});
-
-const sheet =
-workbook.Sheets[workbook.SheetNames[0]];
-
-const rows =
-XLSX.utils.sheet_to_json(sheet);
-
-const allowedStates =
-profiles["Level Debt"];
-
-let est = [];
-let cst = [];
-let mst = [];
-let pst = [];
-
-rows.forEach(row => {
-
-const state =
-normalizeState(
-row.State ||
-row.STATE ||
-row.state
-);
-
-if(!allowedStates.includes(state)){
-return;
-}
-
-const tz = getTimezone(state);
-
-if(tz === "EST") est.push(row);
-if(tz === "CST") cst.push(row);
-if(tz === "MST") mst.push(row);
-if(tz === "PST") pst.push(row);
-
-});
-
-downloadFile(est,"EST");
-downloadFile(cst,"CST");
-downloadFile(mst,"MST");
-downloadFile(pst,"PST");
-
-document.getElementById("results").innerHTML =
-
-"EST: " + est.length + "<br>" +
-"CST: " + cst.length + "<br>" +
-"MST: " + mst.length + "<br>" +
-"PST: " + pst.length;
-
-};
-
-reader.readAsArrayBuffer(file);
-
-}
-
-function downloadFile(data,fileName){
-
-if(data.length === 0){
-return;
-}
-
-const format =
-document.getElementById("exportFormat").value;
-
-const ws =
-XLSX.utils.json_to_sheet(data);
-
-const wb =
-XLSX.utils.book_new();
-
-XLSX.utils.book_append_sheet(
-wb,
-ws,
-fileName
-);
-
-if(format === "xlsx"){
-
-XLSX.writeFile(
-wb,
-fileName + ".xlsx"
-);
-
-}else{
-
-XLSX.writeFile(
-wb,
-fileName + ".csv"
-);
-
-}
-
-}
-
 </script>
-
 </body>
 </html>
